@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Семейный бюджет</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+  body{background:#f0f2f5;color:#333;padding:16px;padding-bottom:40px;min-height:100vh}
+  .container{max-width:760px;margin:0 auto}
+  h1{font-size:20px;color:#1a1a2e;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px}
+  h1 span.brand{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .logout{font-size:13px;color:#888;background:none;border:none;cursor:pointer;padding:6px 8px}
+  .logout:hover{color:#e74c3c}
+  .card{background:#fff;border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 2px 12px rgba(0,0,0,.06)}
+  .total{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff}
+  .balances{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .balances .item{text-align:center}
+  .balances .label{opacity:.85;font-size:12px;margin-bottom:4px}
+  .balances .val{font-size:18px;font-weight:700}
+  .balance-main{text-align:center;border-top:1px solid rgba(255,255,255,.25);padding-top:12px}
+  .balance-main .label{opacity:.85;font-size:12px}
+  .balance-main .amount{font-size:34px;font-weight:800;margin:4px 0}
+  .balance-main .pos{color:#a8ffb0}.balance-main .neg{color:#ffb3b3}
+  .month-row{display:flex;justify-content:center;margin-top:10px}
+  .month-row select{background:rgba(255,255,255,.2);border:none;color:#fff;padding:8px 14px;border-radius:10px;font-size:14px}
+  .month-row select option{color:#333}
+  h2{font-size:16px;margin-bottom:12px;color:#1a1a2e;display:flex;justify-content:space-between;align-items:center}
+  h2 .hint{font-size:12px;color:#999;font-weight:400}
+  form{display:grid;gap:10px}
+  input,select,textarea{padding:12px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:16px;width:100%;background:#fff;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:#667eea}
+  button{cursor:pointer;font-family:inherit}
+  .btn{padding:12px;background:#667eea;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:600;transition:.15s}
+  .btn:hover{background:#5568d3}
+  .btn:disabled{opacity:.55;cursor:wait}
+  .btn-sec{background:#f0f2f5;color:#555}
+  .btn-sec:hover{background:#e4e6ea}
+  .btn-danger{background:#ffe5e5;color:#c0392b}
+  .btn-danger:hover{background:#ffd0d0}
+  .btn-sm{padding:8px 12px;font-size:14px;border-radius:8px;border:none;font-weight:600}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .tabs{display:flex;gap:6px;background:#f0f2f5;padding:4px;border-radius:12px;margin-bottom:14px}
+  .tab{flex:1;padding:10px;text-align:center;border-radius:9px;font-size:14px;font-weight:600;color:#666;background:none;border:none;transition:.15s}
+  .tab.active{background:#fff;color:#667eea;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+  .expense{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f2f2f2;gap:8px}
+  .expense:last-child{border:none}
+  .expense .info{flex:1;min-width:0}
+  .expense .cat{font-size:12px;color:#888;margin-top:2px}
+  .expense .name{font-weight:500;word-break:break-word}
+  .expense .sum{font-weight:700;white-space:nowrap;margin-left:6px}
+  .sum.inc{color:#27ae60}
+  .sum.exp{color:#e74c3c}
+  .expense .del{background:none;color:#ccc;font-size:20px;padding:2px 8px;border:none}
+  .expense .del:hover{color:#e74c3c}
+  .cat-stats{display:flex;flex-direction:column;gap:10px}
+  .cat-row{display:flex;align-items:center;gap:10px}
+  .cat-row .bar-wrap{flex:1;background:#f0f0f0;height:8px;border-radius:4px;overflow:hidden;min-width:40px}
+  .cat-row .bar{height:100%;background:#667eea;border-radius:4px;transition:.3s}
+  .cat-row .bar.over{background:#e74c3c}
+  .cat-row .cat-name{min-width:110px;font-size:14px}
+  .cat-row .cat-sum{min-width:95px;text-align:right;font-weight:600;font-size:14px;white-space:nowrap}
+  .cat-row .cat-sum small{display:block;color:#999;font-weight:400;font-size:11px}
+  .empty{text-align:center;color:#aaa;padding:24px 12px;font-size:14px}
+  .login-wrap{max-width:420px;margin:40px auto 0}
+  .login-wrap h1{justify-content:center;font-size:24px;margin-bottom:6px}
+  .login-wrap .sub{text-align:center;color:#777;font-size:14px;margin-bottom:18px}
+  .switch{display:flex;background:#f0f2f5;border-radius:10px;padding:4px;margin-bottom:14px}
+  .switch button{flex:1;padding:10px;border:none;background:none;border-radius:8px;font-size:14px;font-weight:600;color:#666}
+  .switch button.active{background:#fff;color:#667eea;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+  .error{background:#ffe5e5;color:#c0392b;padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:10px;display:none}
+  .error.show{display:block}
+  .hidden{display:none !important}
+  .success-msg{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#27ae60;color:#fff;padding:12px 20px;border-radius:24px;font-weight:600;box-shadow:0 6px 20px rgba(39,174,96,.4);opacity:0;pointer-events:none;transition:.3s;z-index:100}
+  .success-msg.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+  .chart-wrap{position:relative;height:220px}
+  .member-chip{display:inline-block;background:#f0f2f5;padding:4px 10px;border-radius:12px;font-size:12px;margin:2px 4px 2px 0;color:#555}
+  .invite-box{background:#f8f9ff;border:1.5px dashed #667eea;border-radius:12px;padding:12px;text-align:center;margin-top:10px}
+  .invite-box .code{font-size:22px;font-weight:800;letter-spacing:2px;color:#667eea;margin:4px 0;cursor:pointer;user-select:all}
+  .invite-box .hint{font-size:12px;color:#888}
+  .budget-item{margin-bottom:14px}
+  .budget-head{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px;align-items:center}
+  .budget-head .cat{font-weight:600}
+  .budget-head .del{background:none;border:none;color:#ccc;cursor:pointer;font-size:18px;padding:0 4px}
+  .budget-head .del:hover{color:#e74c3c}
+  .budget-bar-wrap{height:10px;background:#f0f0f0;border-radius:5px;overflow:hidden}
+  .budget-bar{height:100%;background:#27ae60;transition:.3s;border-radius:5px}
+  .budget-bar.warn{background:#f39c12}
+  .budget-bar.over{background:#e74c3c}
+  .budget-info{display:flex;justify-content:space-between;font-size:12px;color:#888;margin-top:4px}
+  .over-text{color:#e74c3c;font-weight:600}
+  .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .actions .btn-sm{flex:1;min-width:120px}
+  .stat-mini{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .stat-mini .box{background:#f8f9ff;border-radius:12px;padding:12px;text-align:center}
+  .stat-mini .box .lbl{font-size:11px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+  .stat-mini .box .val{font-size:18px;font-weight:700;color:#1a1a2e}
+  .stat-mini .box .val.pos{color:#27ae60}
+  .stat-mini .box .val.neg{color:#e74c3c}
+  .loading{text-align:center;padding:40px;color:#999}
+</style>
+</head>
+<body>
+
+<!-- ЭКРАН ВХОДА -->
+<div id="loginScreen" class="container hidden">
+  <div class="login-wrap">
+    <div class="card">
+      <h1>💰 Семейный бюджет</h1>
+      <p class="sub">Общий учёт расходов для всей семьи</p>
+
+      <div class="switch" id="authSwitch">
+        <button data-mode="login" class="active">Вход</button>
+        <button data-mode="register">Регистрация</button>
+      </div>
+
+      <div class="error" id="authError"></div>
+
+      <form id="authForm">
+        <input type="text" id="auUsername" placeholder="Логин" autocomplete="username" required>
+        <input type="password" id="auPassword" placeholder="Пароль (минимум 6 символов)" autocomplete="current-password" required>
+
+        <div id="registerFields" class="hidden" style="display:grid;gap:10px">
+          <input type="text" id="auDisplayName" placeholder="Как вас зовут (Мама, Папа...)">
+          <div class="switch" id="familySwitch" style="margin-bottom:0">
+            <button type="button" data-fam="create" class="active">Создать семью</button>
+            <button type="button" data-fam="join">Войти по коду</button>
+          </div>
+          <input type="text" id="auFamilyName" placeholder="Название семьи (Ивановы)">
+          <input type="text" id="auInviteCode" placeholder="Код семьи" class="hidden">
+        </div>
+
+        <button type="submit" class="btn" id="authSubmit">Войти</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ОСНОВНОЙ ЭКРАН -->
+<div id="appScreen" class="container hidden">
+  <h1>
+    <span class="brand">💰 <span id="hFamilyName">Семья</span></span>
+    <button class="logout" onclick="logout()">Выйти</button>
+  </h1>
+
+  <div class="card total">
+    <div class="balances">
+      <div class="item">
+        <div class="label">Доходы</div>
+        <div class="val" id="hIncome">0 ₽</div>
+      </div>
+      <div class="item">
+        <div class="label">Расходы</div>
+        <div class="val" id="hExpense">0 ₽</div>
+      </div>
+    </div>
+    <div class="balance-main">
+      <div class="label">Баланс за месяц</div>
+      <div class="amount" id="hBalance">0 ₽</div>
+    </div>
+    <div class="month-row">
+      <select id="monthSelect"></select>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="ops">Операции</button>
+    <button class="tab" data-tab="budgets">Бюджеты</button>
+    <button class="tab" data-tab="stats">Статистика</button>
+    <button class="tab" data-tab="settings">Настройки</button>
+  </div>
+
+  <!-- ТАБ: Операции -->
+  <div id="tab-ops">
+    <div class="card">
+      <h2>➕ Добавить операцию</h2>
+      <form id="expenseForm">
+        <div class="switch" id="typeSwitch">
+          <button type="button" data-type="expense" class="active">− Расход</button>
+          <button type="button" data-type="income">+ Доход</button>
+        </div>
+        <input type="text" id="fName" placeholder="Наименование" required maxlength="200">
+        <div class="row">
+          <input type="number" id="fAmount" placeholder="Сумма, ₽" min="0.01" step="0.01" required>
+          <select id="fCategory" required></select>
+        </div>
+        <input type="date" id="fDate" required>
+        <button type="submit" class="btn" id="fSubmit">Добавить</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>📋 Операции за месяц <span class="hint" id="opsCount"></span></h2>
+      <div class="tabs" style="margin-bottom:10px">
+        <button class="tab active" data-opsfilter="all">Все</button>
+        <button class="tab" data-opsfilter="expense">Расходы</button>
+        <button class="tab" data-opsfilter="income">Доходы</button>
+      </div>
+      <div id="expenseList"><div class="loading">Загрузка...</div></div>
+      <div class="actions">
+        <button class="btn btn-sec btn-sm" onclick="exportExcel()">📤 Excel</button>
+        <button class="btn btn-sec btn-sm" onclick="exportJSON()">💾 JSON</button>
+        <button class="btn btn-sec btn-sm" onclick="importJSON()">📂 Импорт</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ТАБ: Бюджеты -->
+  <div id="tab-budgets" class="hidden">
+    <div class="card">
+      <h2>🎯 Лимит на категорию</h2>
+      <form id="budgetForm">
+        <div class="row">
+          <select id="bCategory" required></select>
+          <input type="number" id="bLimit" placeholder="Лимит, ₽" min="1" step="1" required>
+        </div>
+        <button type="submit" class="btn">Установить лимит</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Прогресс по бюджетам <span class="hint" id="budgetMonth"></span></h2>
+      <div id="budgetsList"><div class="empty">Нет установленных лимитов</div></div>
+    </div>
+  </div>
+
+  <!-- ТАБ: Статистика -->
+  <div id="tab-stats" class="hidden">
+    <div class="stat-mini">
+      <div class="box">
+        <div class="lbl">Расходы месяц</div>
+        <div class="val neg" id="sMonthExp">0 ₽</div>
+      </div>
+      <div class="box">
+        <div class="lbl">Прошлый месяц</div>
+        <div class="val" id="sPrevExp">0 ₽</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📈 Расходы по дням</h2>
+      <div class="chart-wrap"><canvas id="dailyChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>📊 По категориям</h2>
+      <div class="cat-stats" id="catStats"><div class="empty">Нет данных</div></div>
+    </div>
+
+    <div class="card">
+      <h2>👥 Кто сколько внёс</h2>
+      <div id="userStats"><div class="empty">Нет данных</div></div>
+    </div>
+  </div>
+
+  <!-- ТАБ: Настройки -->
+  <div id="tab-settings" class="hidden">
+    <div class="card">
+      <h2>👨‍👩‍👧‍👦 Семья</h2>
+      <p style="font-size:14px;color:#666;margin-bottom:10px">Название: <b id="setFamilyName"></b></p>
+      <p style="font-size:14px;color:#666;margin-bottom:6px">Код для приглашения:</p>
+      <div class="invite-box">
+        <div class="code" id="setInviteCode" onclick="copyCode()">------</div>
+        <div class="hint">Нажмите, чтобы скопировать. Передайте его близким — они войдут с этим кодом.</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>👤 Участники</h2>
+      <div id="membersList"></div>
+    </div>
+    <div class="card">
+      <h2>🔐 Аккаунт</h2>
+      <p style="font-size:14px;color:#666;margin-bottom:6px">Вы вошли как: <b id="setDisplayName"></b></p>
+      <p style="font-size:13px;color:#999">Логин: <span id="setUsername"></span></p>
+      <button class="btn btn-danger btn-sm" style="margin-top:12px;width:100%" onclick="logout()">Выйти из аккаунта</button>
+    </div>
+  </div>
+</div>
+
+<div class="success-msg" id="toast">✓ Сохранено</div>
+
+<script>
+// ============ CONFIG ============
+const CATEGORIES = {
+  expense: [
+    '🛒 Продукты','🏠 ЖКХ','⛽ Бензин','🚗 Транспорт','🏋️ Спорт','💊 Здоровье',
+    '👕 Одежда','🍽️ Кафе','🎬 Развлечения','🎁 Подарки','📱 Связь','🎓 Образование',
+    '✈️ Отпуск','🐾 Питомцы','📦 Прочее'
+  ],
+  income: [
+    '💼 Зарплата','💰 Премия','🎁 Подарок','📈 Инвестиции','💵 Подработка',
+    '🏦 Проценты','📦 Прочее'
+  ]
+};
+
+const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+const state = {
+  user: null,
+  month: new Date().toISOString().slice(0, 7),
+  expenses: [],
+  months: [],
+  budgets: [],
+  stats: null,
+  opsFilter: 'all',
+  formType: 'expense',
+  activeTab: 'ops',
+  socket: null,
+  dailyChart: null,
+};
+
+// ============ UTILS ============
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+const fmt = (n) => (Math.round(n * 100) / 100).toLocaleString('ru-RU') + ' ₽';
+const monthLabel = (ym) => {
+  const [y, m] = ym.split('-');
+  return `${MONTHS[+m - 1]} ${y}`;
+};
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg = '✓ Сохранено') {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    ...opts,
+    body: opts.body && typeof opts.body !== 'string' ? JSON.stringify(opts.body) : opts.body,
+  });
+  if (res.status === 401) { showLogin(); throw new Error('unauth'); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Ошибка запроса');
+  return data;
+}
+
+// ============ AUTH ============
+let authMode = 'login';
+let familyMode = 'create';
+
+function showLogin() {
+  $('#loginScreen').classList.remove('hidden');
+  $('#appScreen').classList.add('hidden');
+  if (state.socket) { state.socket.disconnect(); state.socket = null; }
+}
+
+function showApp() {
+  $('#loginScreen').classList.add('hidden');
+  $('#appScreen').classList.remove('hidden');
+}
+
+function authError(msg) {
+  const el = $('#authError');
+  if (msg) { el.textContent = msg; el.classList.add('show'); }
+  else el.classList.remove('show');
+}
+
+$$('#authSwitch button').forEach(btn => btn.addEventListener('click', () => {
+  authMode = btn.dataset.mode;
+  $$('#authSwitch button').forEach(b => b.classList.toggle('active', b === btn));
+  $('#registerFields').classList.toggle('hidden', authMode !== 'register');
+  $('#authSubmit').textContent = authMode === 'login' ? 'Войти' : 'Зарегистрироваться';
+  $('#auDisplayName').required = authMode === 'register';
+  $('#auFamilyName').required = authMode === 'register' && familyMode === 'create';
+  $('#auInviteCode').required = authMode === 'register' && familyMode === 'join';
+  authError('');
+}));
+
+$$('#familySwitch button').forEach(btn => btn.addEventListener('click', () => {
+  familyMode = btn.dataset.fam;
+  $$('#familySwitch button').forEach(b => b.classList.toggle('active', b === btn));
+  const isCreate = familyMode === 'create';
+  $('#auFamilyName').classList.toggle('hidden', !isCreate);
+  $('#auInviteCode').classList.toggle('hidden', isCreate);
+  $('#auFamilyName').required = isCreate;
+  $('#auInviteCode').required = !isCreate;
+}));
+
+$('#authForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  authError('');
+  const btn = $('#authSubmit');
+  btn.disabled = true;
+  try {
+    const payload = {
+      username: $('#auUsername').value.trim(),
+      password: $('#auPassword').value,
+    };
+    if (authMode === 'register') {
+      Object.assign(payload, {
+        display_name: $('#auDisplayName').value.trim(),
+        family_action: familyMode,
+        family_name: familyMode === 'create' ? $('#auFamilyName').value.trim() : '',
+        invite_code: familyMode === 'join' ? $('#auInviteCode').value.trim() : '',
+      });
+      await api('/api/register', { method: 'POST', body: payload });
+    } else {
+      await api('/api/login', { method: 'POST', body: payload });
+    }
+    await boot();
+  } catch (err) {
+    authError(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function logout() {
+  if (!confirm('Выйти из аккаунта?')) return;
+  await api('/api/logout', { method: 'POST' });
+  location.reload();
+}
+
+// ============ INIT ============
+async function boot() {
+  const me = await api('/api/me');
+  if (!me.authenticated) { showLogin(); return; }
+  state.user = me.user;
+  showApp();
+  renderUserInfo();
+  await loadMonths();
+  await Promise.all([loadExpenses(), loadBudgets(), loadStats()]);
+  connectSocket();
+}
+
+function renderUserInfo() {
+  $('#hFamilyName').textContent = state.user.family_name || 'Семья';
+  $('#setFamilyName').textContent = state.user.family_name || '';
+  $('#setInviteCode').textContent = state.user.invite_code || '';
+  $('#setDisplayName').textContent = state.user.display_name;
+  $('#setUsername').textContent = state.user.username;
+  loadMembers();
+}
+
+async function loadMembers() {
+  try {
+    const members = await api('/api/family/members');
+    $('#membersList').innerHTML = members.map(m =>
+      `<span class="member-chip">👤 ${escapeHtml(m.display_name)}</span>`
+    ).join('');
+  } catch {}
+}
+
+// ============ SOCKET ============
+function connectSocket() {
+  if (state.socket) state.socket.disconnect();
+  state.socket = io({ transports: ['websocket', 'polling'] });
+  state.socket.on('refresh', async () => {
+    await Promise.all([loadExpenses(), loadBudgets(), loadStats()]);
+  });
+  state.socket.on('connect_error', () => {});
+}
+
+// ============ MONTHS ============
+async function loadMonths() {
+  const list = await api('/api/months');
+  const cur = new Date().toISOString().slice(0, 7);
+  const set = new Set(list);
+  set.add(cur);
+  set.add(state.month);
+  state.months = [...set].sort().reverse();
+  const sel = $('#monthSelect');
+  sel.innerHTML = state.months.map(m =>
+    `<option value="${m}" ${m === state.month ? 'selected' : ''}>${monthLabel(m)}</option>`
+  ).join('');
+  $('#budgetMonth').textContent = monthLabel(state.month);
+}
+
+$('#monthSelect').addEventListener('change', (e) => {
+  state.month = e.target.value;
+  $('#budgetMonth').textContent = monthLabel(state.month);
+  Promise.all([loadExpenses(), loadBudgets(), loadStats()]);
+});
+
+// ============ EXPENSES ============
+function updateCategoryOptions() {
+  const cats = CATEGORIES[state.formType];
+  $('#fCategory').innerHTML = `<option value="">Категория...</option>` +
+    cats.map(c => `<option>${c}</option>`).join('');
+
+  $('#bCategory').innerHTML = `<option value="">Категория...</option>` +
+    CATEGORIES.expense.map(c => `<option>${c}</option>`).join('');
+}
+
+$$('#typeSwitch button').forEach(btn => btn.addEventListener('click', () => {
+  state.formType = btn.dataset.type;
+  $$('#typeSwitch button').forEach(b => b.classList.toggle('active', b === btn));
+  updateCategoryOptions();
+}));
+
+$('#expenseForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('#fSubmit');
+  btn.disabled = true;
+  try {
+    await api('/api/expenses', {
+      method: 'POST',
+      body: {
+        type: state.formType,
+        name: $('#fName').value.trim(),
+        amount: $('#fAmount').value,
+        category: $('#fCategory').value,
+        date: $('#fDate').value,
+      }
+    });
+    e.target.reset();
+    $('#fDate').valueAsDate = new Date();
+    updateCategoryOptions();
+    // если добавили в другой месяц — переключимся
+    const ym = $('#fDate').value ? $('#fDate').value.slice(0, 7) : state.month;
+    if (!state.months.includes(ym)) {
+      state.months.unshift(ym);
+      state.months.sort().reverse();
+      state.month = ym;
+      await loadMonths();
+      $('#monthSelect').value = ym;
+    }
+    toast('✓ Добавлено');
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function loadExpenses() {
+  const q = new URLSearchParams({ month: state.month });
+  if (state.opsFilter !== 'all') q.set('type', state.opsFilter);
+  state.expenses = await api('/api/expenses?' + q);
+  renderExpenses();
+}
+
+function renderExpenses() {
+  const list = $('#expenseList');
+  $('#opsCount').textContent = state.expenses.length ? `${state.expenses.length} шт.` : '';
+  if (!state.expenses.length) {
+    list.innerHTML = '<div class="empty">Нет операций за этот месяц</div>';
+    return;
+  }
+  list.innerHTML = state.expenses.map(e => `
+    <div class="expense">
+      <div class="info">
+        <div class="name">${escapeHtml(e.name)}</div>
+        <div class="cat">${escapeHtml(e.category)} • ${escapeHtml(e.who)} • ${e.date.split('-').reverse().join('.')}</div>
+      </div>
+      <div class="sum ${e.type === 'income' ? 'inc' : 'exp'}">
+        ${e.type === 'income' ? '+' : '−'}${fmt(e.amount)}
+      </div>
+      <button class="del" onclick="delExpense(${e.id})">×</button>
+    </div>
+  `).join('');
+}
+
+async function delExpense(id) {
+  if (!confirm('Удалить операцию?')) return;
+  try {
+    await api('/api/expenses/' + id, { method: 'DELETE' });
+  } catch (err) { alert(err.message); }
+}
+window.delExpense = delExpense;
+
+$$('[data-opsfilter]').forEach(btn => btn.addEventListener('click', () => {
+  state.opsFilter = btn.dataset.opsfilter;
+  $$('[data-opsfilter]').forEach(b => b.classList.toggle('active', b === btn));
+  loadExpenses();
+}));
+
+// ============ BUDGETS ============
+async function loadBudgets() {
+  state.budgets = await api('/api/budgets?month=' + state.month);
+  renderBudgets();
+}
+
+function renderBudgets() {
+  const el = $('#budgetsList');
+  const list = state.stats?.budgets || [];
+  if (!list.length) {
+    el.innerHTML = '<div class="empty">Нет установленных лимитов на этот месяц</div>';
+    return;
+  }
+  el.innerHTML = list.map(b => {
+    const cls = b.over ? 'over' : (b.percent >= 80 ? 'warn' : '');
+    const barW = Math.min(b.percent, 100);
+    return `
+      <div class="budget-item">
+        <div class="budget-head">
+          <span class="cat">${escapeHtml(b.category)}</span>
+          <button class="del" onclick="delBudget(${b.id})">×</button>
+        </div>
+        <div class="budget-bar-wrap">
+          <div class="budget-bar ${cls}" style="width:${barW}%"></div>
+        </div>
+        <div class="budget-info">
+          <span>${fmt(b.spent)} из ${fmt(b.limit)}</span>
+          <span class="${b.over ? 'over-text' : ''}">${b.percent}%${b.over ? ' ⚠ перерасход' : ''}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+$('#budgetForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await api('/api/budgets', {
+      method: 'POST',
+      body: {
+        category: $('#bCategory').value,
+        limit_amount: $('#bLimit').value,
+        month: state.month,
+      }
+    });
+    e.target.reset();
+    toast('✓ Лимит установлен');
+  } catch (err) { alert(err.message); }
+});
+
+async function delBudget(id) {
+  if (!confirm('Удалить лимит?')) return;
+  await api('/api/budgets/' + id, { method: 'DELETE' });
+}
+window.delBudget = delBudget;
+
+// ============ STATS ============
+async function loadStats() {
+  state.stats = await api('/api/stats?month=' + state.month);
+  renderStats();
+  renderBudgets();
+}
+
+function renderStats() {
+  const s = state.stats;
+  if (!s) return;
+
+  $('#hIncome').textContent = fmt(s.total_income);
+  $('#hExpense').textContent = fmt(s.total_expense);
+  const bal = $('#hBalance');
+  bal.textContent = fmt(s.balance);
+  bal.className = 'amount ' + (s.balance >= 0 ? 'pos' : 'neg');
+
+  $('#sMonthExp').textContent = fmt(s.total_expense);
+  $('#sPrevExp').textContent = fmt(s.prev_month_expense);
+
+  // категории
+  const cats = s.by_category;
+  const catEl = $('#catStats');
+  if (!cats.length) {
+    catEl.innerHTML = '<div class="empty">Нет расходов за этот месяц</div>';
+  } else {
+    const max = cats[0].total;
+    const overMap = {};
+    (s.budgets || []).forEach(b => { if (b.over) overMap[b.category] = true; });
+    catEl.innerHTML = cats.map(c => `
+      <div class="cat-row">
+        <div class="cat-name">${escapeHtml(c.category)}</div>
+        <div class="bar-wrap">
+          <div class="bar ${overMap[c.category] ? 'over' : ''}"
+               style="width:${(c.total / max * 100).toFixed(1)}%"></div>
+        </div>
+        <div class="cat-sum">${fmt(c.total)}</div>
+      </div>
+    `).join('');
+  }
+
+  // кто внёс
+  const users = s.by_user || [];
+  const uEl = $('#userStats');
+  if (!users.length) {
+    uEl.innerHTML = '<div class="empty">Нет данных</div>';
+  } else {
+    uEl.innerHTML = users.map(u => `
+      <div class="expense">
+        <div class="info">
+          <div class="name">👤 ${escapeHtml(u.who)}</div>
+          <div class="cat">${u.type === 'income' ? 'Доходы' : 'Расходы'}</div>
+        </div>
+        <div class="sum ${u.type === 'income' ? 'inc' : 'exp'}">${fmt(u.total)}</div>
+      </div>
+    `).join('');
+  }
+
+  renderDailyChart(s.by_day);
+}
+
+function renderDailyChart(byDay) {
+  const [y, m] = state.month.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const map = Object.fromEntries(byDay.map(d => [d.date, d.total]));
+  const labels = [];
+  const data = [];
+  for (let i = 1; i <= daysInMonth; i++) {
+    const key = `${y}-${String(m).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+    labels.push(i);
+    data.push(map[key] || 0);
+  }
+  const ctx = $('#dailyChart').getContext('2d');
+  if (state.dailyChart) state.dailyChart.destroy();
+  state.dailyChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Расходы, ₽',
+        data,
+        backgroundColor: '#667eea',
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: { beginAtZero: true, ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+// ============ TABS ============
+$$('.tab').forEach(btn => btn.addEventListener('click', () => {
+  if (!btn.dataset.tab) return;
+  state.activeTab = btn.dataset.tab;
+  $$('.tab').forEach(b => b.classList.toggle('active', b === btn && b.dataset.tab));
+  ['ops', 'budgets', 'stats', 'settings'].forEach(t => {
+    $('#tab-' + t).classList.toggle('hidden', t !== state.activeTab);
+  });
+  if (state.activeTab === 'stats' && state.stats) renderDailyChart(state.stats.by_day);
+}));
+
+// ============ EXPORT / IMPORT ============
+function exportExcel() {
+  window.location.href = '/api/export/excel?month=' + state.month;
+}
+window.exportExcel = exportExcel;
+
+function exportJSON() {
+  const data = {
+    month: state.month,
+    expenses: state.expenses,
+    budgets: state.budgets,
+    exported_at: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `budget_${state.month}.json`;
+  a.click();
+}
+window.exportJSON = exportJSON;
+
+function importJSON() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    try {
+      const data = JSON.parse(text);
+      if (!Array.isArray(data.expenses)) throw new Error('Неверный формат');
+      let added = 0;
+      for (const ex of data.expenses) {
+        try {
+          await api('/api/expenses', {
+            method: 'POST',
+            body: {
+              type: ex.type || 'expense',
+              name: ex.name,
+              amount: ex.amount,
+              category: ex.category,
+              date: ex.date,
+            }
+          });
+          added++;
+        } catch {}
+      }
+      toast(`✓ Импортировано: ${added}`);
+    } catch (err) {
+      alert('Ошибка: ' + err.message);
+    }
+  };
+  input.click();
+}
+window.importJSON = importJSON;
+
+function copyCode() {
+  const code = state.user.invite_code;
+  navigator.clipboard.writeText(code).then(() => toast('✓ Код скопирован'));
+}
+window.copyCode = copyCode;
+
+// ============ BOOT ============
+$('#fDate').valueAsDate = new Date();
+updateCategoryOptions();
+boot();
+</script>
+</body>
+</html>
